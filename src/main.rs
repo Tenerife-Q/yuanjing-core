@@ -11,9 +11,9 @@ use chrono::Utc;
 fn main() -> anyhow::Result<()> {
     println!("🛡️ [原镜] 路由级可信确证模块已就绪...");
 
-    let img_path = Path::new("data/test.jpg");
+    let img_path = Path::new("data/samples/original.jpg");
     if !img_path.exists() {
-        println!("⚠️ 请在data目录下放入test.jpg进行测试");
+        println!("⚠️ 请在data/samples目录下放入original.jpg进行测试");
         return Ok(());
     }
 
