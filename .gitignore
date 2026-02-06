@@ -3,3 +3,17 @@
 .env
 .vscode
 .DS_Store
+
+# --- New Data Rules ---
+
+# 1. 忽略数据库文件
+data/db/
+data/*.db
+data/*.sqlite
+data/*.bin
+
+# 2. 忽略运行时生成的临时文件
+data/temp/
+*.log
+
+# 3. (可选) 如果样本图片太大(>100MB)，也要忽略，但通常测试图很小，保留即可。
