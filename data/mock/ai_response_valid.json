@@ -1,0 +1,6 @@
+{
+  "image_id": "img_001",
+  "sapt_score": 0.98,
+  "detected_objects": ["cat", "sofa"],
+  "activated_prompts": [3, 7, 12]
+}
