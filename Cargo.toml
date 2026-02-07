@@ -23,3 +23,8 @@ anyhow = "1.0"
 # 认证数据结构
 ckb-merkle-mountain-range = "0.5"
 hex = "0.4.3"
+axum = "0.8.8"
+tokio = { version = "1.49.0", features = ["full"] }
+tower-http = { version = "0.6.8", features = ["cors"] }
+sled = "0.34.7"
+bcs = "0.1.6"
