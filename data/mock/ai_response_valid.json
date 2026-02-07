@@ -1,6 +1,10 @@
 {
-  "image_id": "img_001",
-  "sapt_score": 0.98,
-  "detected_objects": ["cat", "sofa"],
-  "activated_prompts": [3, 7, 12]
+  "request_id": "req_20260206_001",
+  "sapt_score": 0.94,
+  "is_forged": true,
+  "verdict_reason": "Detected incongruent lighting in background textures",
+  "detected_objects": ["sofa", "cat", "monitor"],
+  "activated_prompts": [3, 7, 12],
+  "prompt_pool_hash": "blake3_hash_mock_v1",
+  "external_knowledge_hash": "sha256_wiki_snapshot_202602"
 }
