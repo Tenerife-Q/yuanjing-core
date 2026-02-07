@@ -26,8 +26,8 @@ pub struct Evidence {
     
     // 置信度
     // 作用：AI 有多大把握。
-    // 类型：f32 (0.0 到 1.0 的浮点数)。如果 confidence 低于某个阈值，法证中心可能拒绝存证。
-    pub confidence: f32,
+    // 类型：String (存储为字符串以确保序列化确定性，例如 "0.99")
+    pub confidence: String,
     
     // 激活的提示词索引 (SAPT - 稀疏激活)
     // 作用：这是“白盒审计”的关键！
