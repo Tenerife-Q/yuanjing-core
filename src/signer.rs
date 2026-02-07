@@ -85,16 +85,11 @@ impl EvidenceSigner {
     ///    (其中 $k$ 为私钥, $P$ 为公钥, $M$ 为消息)
     /// 最终签名就是 $(R, S)$ 对。
     ///
-    /// **[⚠️ 极度危险的坑 - 序列化确定性]**: 
-    /// 代码中使用了 `serde_json::to_vec`。
-    /// - **问题**: JSON 标准是“无序”的。`{"a":1, "b":2}` 和 `{"b":2, "a":1}` 在逻辑上相等，但在**字节流**上完全不同。
-    /// - **后果**: 哈希函数对哪怕 1 个 bit 的变化都极其敏感（雪崩效应）。如果序列化结果哪怕变了一个字节顺序，生成的哈希就会全变，导致验证失败。
-    /// - **解决方案 (Prod)**: 必须使用 **Canonical Serialization (规范化序列化)**，如:
-    ///   - **BCS** (Binary Canonical Serialization - Libra/Aptos利用)
-    ///   - **RLP** (Recursive Length Prefix - Ethereum利用)
-    ///   - **Protobuf** (Deterministic Mode)
+    /// **[✅ 已修复 - 序列化确定性]**: 
+    /// 此处已切换为 **BCS (Binary Canonical Serialization)**。
+    /// BCS 保证同一数据结构永远生成相同的字节流，非常适合哈希和签名。
     pub fn sign(&self, evidence: &Evidence) -> anyhow::Result<Signature> {
-        let payload = serde_json::to_vec(evidence)?;
+        let payload = bcs::to_bytes(evidence)?;
 
         // Ed25519 签名算法 (EdDSA) 本质流程:
         // 1. Hash = SHA512(payload)  -> (压缩信息)
@@ -118,7 +113,7 @@ impl EvidenceSigner {
     /// $$ \text{Right} = R + h \times P = (r \times G) + h \times (k \times G) = (r + h \times k) \times G = S \times G $$
     /// 只要等式成立，就能证明 $S$ 确实是由持有私钥 $k$ 的人计算出的。
     pub fn verify(verification_key: &VerifyingKey, evidence: &Evidence, signature: &Signature) -> anyhow::Result<bool> {
-        let payload = serde_json::to_vec(evidence)?;
+        let payload = bcs::to_bytes(evidence)?;
         
         // 椭圆曲线验证公式:
         // 验证点 $S \times G$ 是否等于 $R + Hash(...) \times Pub$
