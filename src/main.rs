@@ -6,7 +6,18 @@ mod mmr_store;
 use mmr_store::EvidenceStore;
 use signer::EvidenceSigner;
 use std::path::Path;
+use std::fs;
 use chrono::Utc;
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct MockAiResponse {
+    sapt_score: f32,
+    is_forged: bool,
+    activated_prompts: Vec<u32>,
+    prompt_pool_hash: String,
+    external_knowledge_hash: String,
+}
 
 fn main() -> anyhow::Result<()> {
     println!("🛡️ [原镜] 路由级可信确证模块已就绪...");
@@ -19,23 +30,39 @@ fn main() -> anyhow::Result<()> {
 
     let (sha, phash) = fingerprint::generate_fingerprints(img_path)?;
 
-    // 模拟一次来自王模型的推理输出
+    // 1. 读取 Mock AI 推理结果
+    let mock_json_path = "data/mock/ai_response_valid.json";
+    let mock_json = fs::read_to_string(mock_json_path)
+        .map_err(|_| anyhow::anyhow!("❌ 找不到 Mock 数据: {}", mock_json_path))?;
+    let ai_resp: MockAiResponse = serde_json::from_str(&mock_json)?;
+
+    println!("🤖 AI 引擎响应: Forged={}, Confidence={:.2}", ai_resp.is_forged, ai_resp.sapt_score);
+
+    // 2. 组装完整证据链
     let mock_evidence = evidence::Evidence {
         image_phash: phash,
         image_sha256: sha,
-        verdict: false, // 判定为伪造
-        confidence: 0.94,
-        activated_prompts: vec![3, 7, 12], // 模拟激活了医疗(3)和谣言特征(12)提示
-        prompt_pool_hash: "blake3_hash_of_prompt_matrix".to_string(),
-        external_knowledge_hash: "hash_of_wiki_fact_check_text".to_string(),
+        verdict: !ai_resp.is_forged, // true=真图, false=伪造
+        confidence: ai_resp.sapt_score,
+        activated_prompts: ai_resp.activated_prompts,
+        prompt_pool_hash: ai_resp.prompt_pool_hash,
+        external_knowledge_hash: ai_resp.external_knowledge_hash,
         timestamp: Utc::now().timestamp(),
     };
 
     println!("📄 生成可审计证据包：\n{:#?}", mock_evidence);
 
-    // Task A: 数字签名
-    println!("✍️ 正在进行司法级数字签名 (Ed25519)...");
-    let signer = EvidenceSigner::new();
+    // Task A & C: 数字签名 + 身份持久化
+    println!("✍️ 正在加载司法级身份并签名...");
+    
+    // 使用 load_or_generate 替代 new
+    // 第一次运行会生成 yuanjing.key，之后运行会直接读取
+    let signer = EvidenceSigner::load_or_generate("yuanjing.key")?;
+    
+    // 打印一下当前的公钥（身份ID），方便演示时证明"身份没变"
+    let pub_key_bytes = signer.public_key().to_bytes();
+    println!("🆔 当前法证中心身份ID (Public Key): {}", hex::encode(pub_key_bytes));
+
     let signature = signer.sign(&mock_evidence)?;
     
     // 签名结果展示
