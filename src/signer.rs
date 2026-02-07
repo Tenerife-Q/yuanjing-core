@@ -1,3 +1,5 @@
+use std::fs;
+use std::path::Path;
 use ed25519_dalek::{Signer, Verifier, SigningKey, VerifyingKey, Signature};
 use rand::rngs::OsRng; 
 use crate::evidence::Evidence;
@@ -25,19 +27,41 @@ pub struct EvidenceSigner {
 }
 
 impl EvidenceSigner {
-    /// 构造函数：初始化签名环境
-    ///
-    /// **调用逻辑**: 
-    /// `OsRng` -> 操作系统底层驱动(/dev/urandom) -> 获取物理熵 -> 生成 32 字节只有上帝才知道的随机数 -> 映射为 Ed25519 私钥。
+    /// 从文件加载密钥，如果不存在则自动生成 (Load or Generate)
     /// 
-    /// **[⚠️ 生产环境差异]**: 
-    /// - **当前 (Dev/Mock)**: 每次重启程序 `generate()` 都会生成全新的、临时的密钥对。这意味着只要程序重启，之前的签名就“死无对证”了。
-    /// - **生产 (Prod)**: 
-    ///   1. 必须使用 **HSM (硬件安全模块)** 或 KMS，私钥永不离开安全芯片。
-    ///   2. 或者从加密的 Vault (如 HashiCorp Vault) 加载持久化私钥。
-    pub fn new() -> Self {
-        let keypair = SigningKey::generate(&mut OsRng);
-        Self { keypair }
+    /// **工程改进 (Task C)**:
+    /// 解决了之前“重启即丢失身份”的问题。
+    /// 系统启动时会检查指定路径是否存在私钥文件：
+    /// - **存在**: 读取文件恢复身份（模拟从 KeyStore 加载）。
+    /// - **不存在**: 生成新密钥并保存到磁盘（模拟系统首次初始化）。
+    pub fn load_or_generate<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+        let path = path.as_ref();
+
+        if path.exists() {
+            println!("🔑 检测到现有身份文件，正在加载: '{}'", path.display());
+            let bytes = fs::read(path)?;
+            
+            // 校验密钥长度 (Ed25519 Seed 为 32 字节)
+            if bytes.len() != 32 {
+                return Err(anyhow::anyhow!("关键错误: 身份文件损坏，长度不匹配"));
+            }
+
+            // 转换 slice 到 array
+            let mut arr = [0u8; 32];
+            arr.copy_from_slice(&bytes);
+            
+            let keypair = SigningKey::from_bytes(&arr);
+            Ok(Self { keypair })
+        } else {
+            println!("✨ 未检测到身份文件，正在初始化新身份: '{}'", path.display());
+            let keypair = SigningKey::generate(&mut OsRng);
+            
+            // 将私钥 Seed (32 bytes) 写入磁盘
+            // 注意：生产环境中，这个文件权限应设为 600 (只有拥有者可读)
+            fs::write(path, keypair.to_bytes())?;
+            
+            Ok(Self { keypair })
+        }
     }
 
     /// 导出公钥 (Public Key)
