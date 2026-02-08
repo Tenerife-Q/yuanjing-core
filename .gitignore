@@ -17,3 +17,8 @@ data/temp/
 *.log
 
 # 3. (可选) 如果样本图片太大(>100MB)，也要忽略，但通常测试图很小，保留即可。
+
+# Security & Binary
+yuanjing.key
+*.bin
+client_sdk/__pycache__/

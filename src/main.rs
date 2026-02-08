@@ -3,7 +3,9 @@ mod fingerprint;
 mod signer;
 mod mmr_store;
 mod api;
+mod config;
 
+use config::Config;
 use mmr_store::EvidenceStore;
 use signer::EvidenceSigner;
 use std::sync::Arc;
@@ -13,17 +15,24 @@ use tokio::net::TcpListener;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // ----------------------------------------------------------------
+    // 0. 加载配置
+    // ----------------------------------------------------------------
+    let config = Config::from_env();
+    println!("⚙️  配置加载完成: Host={}:{}, DB={}, Key={}", 
+        config.host, config.port, config.db_path, config.key_path);
+
+    // ----------------------------------------------------------------
     // 1. 系统初始化 & 身份加载
     // ----------------------------------------------------------------
     println!("🛡️ [原镜 Yuanjing] 司法级可信确证服务启动中...");
     
     // 加载或生成密钥对 (Task C)
-    let signer = EvidenceSigner::load_or_generate("yuanjing.key")?;
+    let signer = EvidenceSigner::load_or_generate(&config.key_path)?;
     let pub_key_bytes = signer.public_key().to_bytes();
     println!("🆔 服务身份ID (Public Key): {}", hex::encode(pub_key_bytes));
 
     // 初始化 MMR 存储 (Task B)
-    let store = EvidenceStore::new();
+    let store = EvidenceStore::new(&config.db_path);
     println!("📚 证据库 (MMR) 初始化完成 (Headless Mode)");
 
     // ----------------------------------------------------------------
@@ -39,8 +48,8 @@ async fn main() -> anyhow::Result<()> {
     // ----------------------------------------------------------------
     let app = api::app(shared_state);
 
-    let addr = "0.0.0.0:3000";
-    let listener = TcpListener::bind(addr).await?;
+    let addr = format!("{}:{}", config.host, config.port);
+    let listener = TcpListener::bind(&addr).await?;
     
     println!("🚀 API 服务已运行在: http://{}", addr);
     println!("   - POST /prove   : 提交图片指纹进行确证");
