@@ -51,6 +51,20 @@ impl SledStore {
         self.db.flush()?;
         Ok(())
     }
+
+    pub fn register_model(&self, hash: &str, description: &str) -> anyhow::Result<()> {
+        let tree = self.db.open_tree("models_allowlist")?;
+        tree.insert(hash, description)?;
+        tree.flush()?;
+        Ok(())
+    }
+
+    pub fn is_model_authorized(&self, hash: &str) -> bool {
+        if let Ok(tree) = self.db.open_tree("models_allowlist") {
+            return tree.contains_key(hash).unwrap_or(false);
+        }
+        false
+    }
 }
 
 // 为引用类型实现 MMRStore
@@ -91,8 +105,7 @@ pub struct EvidenceStore {
 
 impl EvidenceStore {
     /// 初始化仓库 (加载 DB)
-    pub fn new() -> Self {
-        let db_path = "data/db/mmr_db";
+    pub fn new(db_path: &str) -> Self {
         let store = SledStore::new(db_path).expect("Failed to open Sled DB");
         let mmr_size = store.get_meta_size();
         
@@ -106,6 +119,12 @@ impl EvidenceStore {
 
     /// 核心功能：证据上链入库
     pub fn append(&mut self, evidence: &Evidence) -> anyhow::Result<([u8; 32], u64)> {
+        // Step 0: 白名单校验 (Model Governance)
+        // 防止未授权的模型版本写入区块链
+        if !self.store.is_model_authorized(&evidence.prompt_pool_hash) {
+             return Err(anyhow::anyhow!("Unauthorized Model Version: '{}'. Please register first.", evidence.prompt_pool_hash));
+        }
+
         let payload = bcs::to_bytes(evidence)?;
         let leaf_hash = *blake3::hash(&payload).as_bytes();
 
@@ -127,6 +146,11 @@ impl EvidenceStore {
         self.mmr_size = new_size;
         
         Ok((root, pos))
+    }
+
+    /// 注册新模型
+    pub fn register_model(&self, hash: &str, description: &str) -> anyhow::Result<()> {
+        self.store.register_model(hash, description)
     }
 
     /// 核心功能：开具证明

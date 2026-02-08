@@ -55,6 +55,19 @@ pub struct AuditResponse {
     pub proof_hex: Vec<String>, // 将 proof path 转为 Hex 数组方便前端展示
 }
 
+// 请求：注册模型
+#[derive(Deserialize)]
+pub struct ModelRegisterRequest {
+    pub hash: String,
+    pub description: String,
+}
+
+// 响应：注册成功
+#[derive(Serialize)]
+pub struct ModelRegisterResponse {
+    pub status: String,
+}
+
 // ==========================================
 // 3. API 路由构建
 // ==========================================
@@ -62,6 +75,7 @@ pub fn app(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/prove", post(submit_evidence))
         .route("/audit/{pos}", get(get_audit_proof))
+        .route("/model/register", post(register_model))
         .layer(CorsLayer::permissive()) // ⚠️ 开发模式：允许所有跨域
         .with_state(state)
 }
@@ -69,6 +83,26 @@ pub fn app(state: Arc<AppState>) -> Router {
 // ==========================================
 // 4. 处理函数 (Handlers)
 // ==========================================
+
+/// 接口：注册新的 AI 模型
+async fn register_model(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<ModelRegisterRequest>,
+) -> Result<Json<ModelRegisterResponse>, (StatusCode, String)> {
+    println!("🆕 注册模型: {} ({})", req.hash, req.description);
+    
+    // 我们暂时需要在这里获取 lock，虽然 register_model 本身在 store 里是 &self (只读 self, 但内部有 db 操作)
+    // 但 EvidenceStore 的定义目前是需要在 Mutex 里的。
+    // 其实 register_model 只需要 &EvidenceStore，不需要 &mut EvidenceStore。
+    // 但 AppState 里是 Mutex<EvidenceStore>，所以还是得 lock。
+    let store = state.store.lock().await; // Lock handled automatically
+    store.register_model(&req.hash, &req.description)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(ModelRegisterResponse {
+        status: "Registered".to_string(),
+    }))
+}
 
 /// 接口：提交证据并上链
 async fn submit_evidence(
@@ -111,7 +145,13 @@ async fn submit_evidence(
     let (root, pos) = {
         let mut store = state.store.lock().await;
         store.append(&evidence)
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+            .map_err(|e| {
+                if e.to_string().contains("Unauthorized Model") {
+                     (StatusCode::BAD_REQUEST, e.to_string())
+                } else {
+                     (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+                }
+            })?
     };
 
     println!("✅ 存证成功: Root={}, Pos={}", hex::encode(root), pos);
