@@ -3,6 +3,10 @@ name = "yuanjing-core"
 version = "0.1.0"
 edition = "2021"
 
+[[bench]]
+name = "core_bench"
+harness = false
+
 [dependencies]
 # ⚠️ 关键修改：降级 image 版本以匹配 img_hash，并显式开启 jpeg/png 支持
 image = { version = "0.23.14", features = ["jpeg", "png"] }
@@ -24,7 +28,11 @@ anyhow = "1.0"
 ckb-merkle-mountain-range = "0.5"
 hex = "0.4.3"
 axum = "0.8.8"
-tokio = { version = "1.49.0", features = ["full"] }
+tokio = { version = "1.49.0", features = ["full", "rt-multi-thread"] }
 tower-http = { version = "0.6.8", features = ["cors"] }
 sled = "0.34.7"
 bcs = "0.1.6"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["async_tokio"] }
+
