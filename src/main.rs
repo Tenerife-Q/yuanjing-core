@@ -1,13 +1,7 @@
-mod evidence;
-mod fingerprint;
-mod signer;
-mod mmr_store;
-mod api;
-mod config;
-
-use config::Config;
-use mmr_store::EvidenceStore;
-use signer::EvidenceSigner;
+use yuanjing_core::api;
+use yuanjing_core::config::Config;
+use yuanjing_core::mmr_store::EvidenceStore;
+use yuanjing_core::signer::EvidenceSigner;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::net::TcpListener;
