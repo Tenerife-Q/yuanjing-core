@@ -36,6 +36,8 @@ pub struct ProveRequest {
     pub verdict: bool,
     pub confidence: f32,
     pub source: String, // 来源说明
+    /// AI model version hash; must be pre-registered via `/model/register`
+    pub prompt_pool_hash: String,
 }
 
 // 响应：存证回执
@@ -132,7 +134,7 @@ async fn submit_evidence(
         verdict: req.verdict,
         confidence: req.confidence.to_string(),
         activated_prompts: vec![1, 2, 99], // Mock
-        prompt_pool_hash: "mock_pool_hash_abc123".to_string(),
+        prompt_pool_hash: req.prompt_pool_hash,
         external_knowledge_hash: "mock_wiki_hash_xyz789".to_string(),
         timestamp: chrono::Utc::now().timestamp(),
     };
