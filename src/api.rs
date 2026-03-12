@@ -34,7 +34,7 @@ pub struct ProveRequest {
     
     // 模拟的 AI 参数（如果王嗣萱的模块调用，这里就是真实 AI 结果）
     pub verdict: bool,
-    pub confidence: f32,
+    pub confidence: f64,
     pub source: String, // 来源说明
     /// AI model version hash; must be pre-registered via `/model/register`
     pub prompt_pool_hash: String,
@@ -113,6 +113,14 @@ async fn submit_evidence(
 ) -> Result<Json<ProveReceipt>, (StatusCode, String)> {
     
     println!("📥 收到存证请求: 图片={}, 判定={}", req.image_path, req.verdict);
+
+    // 1. 校验 confidence 字段
+    if req.confidence.is_nan() || req.confidence.is_infinite() {
+        return Err((StatusCode::BAD_REQUEST, "Invalid confidence value: must be a finite number, got NaN or Inf".to_string()));
+    }
+    if !(0.0..=1.0).contains(&req.confidence) {
+        return Err((StatusCode::BAD_REQUEST, format!("Invalid confidence value: {} is out of range [0.0, 1.0]", req.confidence)));
+    }
 
     // 2. 提取指纹 (CPU 密集型操作，已移至 spawn_blocking 优化)
     let img_path_str = req.image_path.clone(); // Clone for closure
