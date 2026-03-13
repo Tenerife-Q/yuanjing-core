@@ -29,13 +29,17 @@ pub struct AppState {
 // 请求：提交证据
 #[derive(Deserialize)]
 pub struct ProveRequest {
-    // 实际场景中这里也是 Mock 的，前端发来图片路径
+    // 图片路径（由 AI 侧传入，服务端负责提取指纹）
     pub image_path: String,
-    
-    // 模拟的 AI 参数（如果王嗣萱的模块调用，这里就是真实 AI 结果）
+
+    // AI 模型的推理结果
     pub verdict: bool,
-    pub confidence: f32,
+    /// 置信度，取值范围必须在 [0.0, 1.0] 之间，不可为 NaN 或无穷大
+    pub confidence: f64,
     pub source: String, // 来源说明
+
+    /// AI 模型版本哈希（prompt pool hash），须已在 /model/register 中注册
+    pub prompt_pool_hash: String,
 }
 
 // 响应：存证回执
@@ -109,8 +113,16 @@ async fn submit_evidence(
     State(state): State<Arc<AppState>>,
     Json(req): Json<ProveRequest>,
 ) -> Result<Json<ProveReceipt>, (StatusCode, String)> {
-    
+
     println!("📥 收到存证请求: 图片={}, 判定={}", req.image_path, req.verdict);
+
+    // 1. 校验置信度
+    if req.confidence.is_nan() || req.confidence.is_infinite() {
+        return Err((StatusCode::BAD_REQUEST, "Invalid confidence value: must not be NaN or infinite".to_string()));
+    }
+    if !(0.0..=1.0).contains(&req.confidence) {
+        return Err((StatusCode::BAD_REQUEST, format!("Invalid confidence value: {} is out of range [0.0, 1.0]", req.confidence)));
+    }
 
     // 2. 提取指纹 (CPU 密集型操作，已移至 spawn_blocking 优化)
     let img_path_str = req.image_path.clone(); // Clone for closure
@@ -125,14 +137,14 @@ async fn submit_evidence(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Task join error: {}", e)))?
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // 3. 构造 Evidence (模拟 AI 结合 Rust 提取的特征)
+    // 3. 构造 Evidence，使用请求中传入的 prompt_pool_hash
     let evidence = Evidence {
         image_phash: phash,
         image_sha256: sha,
         verdict: req.verdict,
         confidence: req.confidence.to_string(),
         activated_prompts: vec![1, 2, 99], // Mock
-        prompt_pool_hash: "mock_pool_hash_abc123".to_string(),
+        prompt_pool_hash: req.prompt_pool_hash,
         external_knowledge_hash: "mock_wiki_hash_xyz789".to_string(),
         timestamp: chrono::Utc::now().timestamp(),
     };
