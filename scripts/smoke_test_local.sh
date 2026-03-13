@@ -10,9 +10,9 @@ if [[ ! -f Cargo.toml ]]; then
   exit 1
 fi
 
-BACKEND_URL=""){BACKEND_URL:-http://127.0.0.1:3000}"
-PROMPT_POOL_HASH=""){PROMPT_POOL_HASH:-mmfn_v1}"
-IMAGE_REL=""){IMAGE_REL:-data/samples/news.jpg}"
+BACKEND_URL="${BACKEND_URL:-http://127.0.0.1:3000}"
+PROMPT_POOL_HASH="${PROMPT_POOL_HASH:-mmfn_v1}"
+IMAGE_REL="${IMAGE_REL:-data/samples/news.jpg}"
 
 echo "[0] Repo: $(pwd)"
 echo "[1] Backend: $BACKEND_URL"
@@ -43,8 +43,21 @@ curl -fsS -X POST "$BACKEND_URL/model/register" \
 echo "[6] POST /prove"
 PROVE_JSON="$(curl -fsS -X POST "$BACKEND_URL/prove" \
   -H "Content-Type: application/json" \
-  -d "{\n    \"image_path\":\"$IMAGE_ABS\",\n    \"verdict\": false,\n    \"confidence\": 0.99,\n    \"source\": \"manual-test\",\n    \"prompt_pool_hash\": \"$PROMPT_POOL_HASH\"\n  }")"
+  -d "{
+    \"image_path\":\"$IMAGE_ABS\",
+    \"verdict\": false,
+    \"confidence\": 0.99,
+    \"source\": \"manual-test\",
+    \"prompt_pool_hash\": \"$PROMPT_POOL_HASH\"
+  }")"
 echo "  /prove => $PROVE_JSON"
 
 echo "[7] Extract leaf_pos"
-LEAF_POS="$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())[
+LEAF_POS="$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["leaf_pos"])' <<<"$PROVE_JSON")"
+echo "  leaf_pos=$LEAF_POS"
+
+echo "[8] GET /audit/{leaf_pos}"
+AUDIT_JSON="$(curl -fsS "$BACKEND_URL/audit/$LEAF_POS")"
+echo "  /audit => $AUDIT_JSON"
+
+echo "OK: smoke test passed"
