@@ -22,3 +22,8 @@ data/temp/
 yuanjing.key
 *.bin
 client_sdk/__pycache__/
+
+# Local smoke-test artifacts (do not commit)
+data/samples/news.jpg
+docs/## GitHub Copilot Chat.md
+docs/API.mdnano
