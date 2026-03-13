@@ -1,37 +1,50 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Ensure the script is run from the repo root
-if [ ! -d .git ]; then
-  echo "This script must be run from the repository root."
+# Local smoke test for Yuanjing Core.
+# Usage:
+#   BACKEND_URL=http://127.0.0.1:3000 PROMPT_POOL_HASH=mmfn_v1 ./scripts/smoke_test_local.sh
+
+if [[ ! -f Cargo.toml ]]; then
+  echo "Error: run this script from the repo root (where Cargo.toml exists)."
   exit 1
 fi
 
-# Check if BACKEND_URL is set, else default to http://127.0.0.1:3000
-BACKEND_URL=${BACKEND_URL:-http://127.0.0.1:3000}
+BACKEND_URL=""){BACKEND_URL:-http://127.0.0.1:3000}"
+PROMPT_POOL_HASH=""){PROMPT_POOL_HASH:-mmfn_v1}"
+IMAGE_REL=""){IMAGE_REL:-data/samples/news.jpg}"
 
-# Register PROMPT_POOL_HASH if not provided, default to mmfn_v1
-PROMPT_POOL_HASH=${PROMPT_POOL_HASH:-mmfn_v1}
+echo "[0] Repo: $(pwd)"
+echo "[1] Backend: $BACKEND_URL"
+echo "[2] prompt_pool_hash: $PROMPT_POOL_HASH"
 
-# Ensure data/samples/news.jpg exists
-if [ ! -f data/samples/news.jpg ]; then
-  echo "Downloading test image..."
-  mkdir -p data/samples
-  curl -o data/samples/news.jpg https://picsum.photos/400.jpg
+echo "[3] Check backend reachable"
+curl -fsS "$BACKEND_URL/audit/0" >/dev/null
+
+echo "[4] Ensure JPEG test image exists"
+mkdir -p "$(dirname "$IMAGE_REL")"
+if [[ ! -s "$IMAGE_REL" ]]; then
+  echo "  downloading JPEG to $IMAGE_REL"
+  curl -fsSL -o "$IMAGE_REL" "https://picsum.photos/400.jpg"
 fi
 
-# Call the POST /model/register
-response=$(curl -s -X POST -H "Content-Type: application/json" -d '{"prompt_pool_hash": "$PROMPT_POOL_HASH"}' "$BACKEND_URL/model/register")
-
-# Parse leaf_pos from response
-leaf_pos=$(echo "$response" | jq -r '.leaf_pos')
-if [ "$leaf_pos" == "null" ]; then
-  echo "Error: leaf_pos not returned from registration."
-  exit 1
+if command -v file >/dev/null 2>&1; then
+  echo "  file: $(file "$IMAGE_REL")"
 fi
 
-# Call POST /prove
-image_path=$(realpath data/samples/news.jpg)
-curl -X POST -H "Content-Type: application/json" -d '{"image_path": "$image_path", "verdict": false, "confidence": 0.99, "source": "manual-test", "prompt_pool_hash": "$PROMPT_POOL_HASH"}' "$BACKEND_URL/prove"
+IMAGE_ABS="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$IMAGE_REL")"
+echo "  image_path: $IMAGE_ABS"
 
-# Call GET /audit/{leaf_pos}
-curl -X GET "$BACKEND_URL/audit/$leaf_pos"
+echo "[5] POST /model/register"
+curl -fsS -X POST "$BACKEND_URL/model/register" \
+  -H "Content-Type: application/json" \
+  -d "{\"hash\":\"$PROMPT_POOL_HASH\",\"description\":\"local smoke test\"}" >/dev/null
+
+echo "[6] POST /prove"
+PROVE_JSON="$(curl -fsS -X POST "$BACKEND_URL/prove" \
+  -H "Content-Type: application/json" \
+  -d "{\n    \"image_path\":\"$IMAGE_ABS\",\n    \"verdict\": false,\n    \"confidence\": 0.99,\n    \"source\": \"manual-test\",\n    \"prompt_pool_hash\": \"$PROMPT_POOL_HASH\"\n  }")"
+echo "  /prove => $PROVE_JSON"
+
+echo "[7] Extract leaf_pos"
+LEAF_POS="$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())[
