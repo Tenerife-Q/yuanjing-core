@@ -51,3 +51,19 @@ pub fn generate_fingerprints(path: &Path) -> anyhow::Result<(String, String)> {
     // 为了存得短一点，常用 Base64 编码转成字符串。
     Ok((sha_hash, phash.to_base64()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_generate_fingerprints_valid_image() {
+        let sample_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/samples/original.jpg");
+        if sample_path.exists() {
+            let (sha, phash) = generate_fingerprints(&sample_path).expect("Failed to generate fingerprints");
+            assert_eq!(sha.len(), 64, "SHA-256 string must be 64 characters long");
+            assert!(!phash.is_empty(), "pHash should not be empty");
+        }
+    }
+}
