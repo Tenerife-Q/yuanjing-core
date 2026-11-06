@@ -159,3 +159,56 @@ impl EvidenceStore {
         mmr.gen_proof(pos_list).map_err(|e| anyhow::anyhow!("MMR gen_proof error: {}", e))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn get_temp_db_path(name: &str) -> String {
+        let path = std::env::temp_dir().join(format!("yuanjing_test_db_{}", name));
+        if path.exists() {
+            let _ = fs::remove_dir_all(&path);
+        }
+        path.to_str().unwrap().to_string()
+    }
+
+    fn mock_evidence(model_hash: &str) -> Evidence {
+        Evidence {
+            image_phash: "12345678".to_string(),
+            image_sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_string(),
+            verdict: true,
+            confidence: "0.99".to_string(),
+            activated_prompts: vec![10, 20],
+            prompt_pool_hash: model_hash.to_string(),
+            external_knowledge_hash: "wiki_ref".to_string(),
+            timestamp: 1710000000,
+        }
+    }
+
+    #[test]
+    fn test_model_auth_and_mmr_append() {
+        let db_path = get_temp_db_path("auth_append");
+        let mut store = EvidenceStore::new(&db_path);
+
+        let model_hash = "0000000000000000000000000000000000000000000000000000000000000000";
+        
+        // Before register, append should fail
+        let ev = mock_evidence(model_hash);
+        assert!(store.append(&ev).is_err(), "Append should fail for unregistered model");
+
+        // Register model
+        store.register_model(model_hash, "test model").expect("Failed to register model");
+
+        // Now append should succeed
+        let (root, pos) = store.append(&ev).expect("Append should succeed after registration");
+        assert_ne!(root, [0u8; 32]);
+        assert_eq!(pos, 0);
+
+        // Generate proof
+        let proof = store.get_proof(vec![pos]).expect("Failed to generate proof");
+        assert_eq!(proof.proof_items().len(), 0); // Single leaf MMR has no sibling proof items
+
+        let _ = fs::remove_dir_all(&db_path);
+    }
+}
