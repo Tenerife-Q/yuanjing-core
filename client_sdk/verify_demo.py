@@ -67,7 +67,8 @@ def main():
         "image_path": image_path,
         "verdict": True, 
         "confidence": 0.88,
-        "source": "sapt_simulator_v1"
+        "source": "sapt_simulator_v1",
+        "prompt_pool_hash": mock_hardcoded_hash
     }
     
     print(f"🚀 发送存证请求: {payload}")
