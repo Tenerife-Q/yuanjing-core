@@ -124,3 +124,62 @@ impl EvidenceSigner {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn create_mock_evidence() -> Evidence {
+        Evidence {
+            image_phash: "AAAAAAA=".to_string(),
+            image_sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string(),
+            verdict: true,
+            confidence: "0.95".to_string(),
+            activated_prompts: vec![1, 2, 3],
+            prompt_pool_hash: "0000000000000000000000000000000000000000000000000000000000000000".to_string(),
+            external_knowledge_hash: "mock_news_hash".to_string(),
+            timestamp: 1710000000,
+        }
+    }
+
+    #[test]
+    fn test_sign_and_verify_success() {
+        let tmp_key_path = std::env::temp_dir().join("test_yuanjing_signer.key");
+        if tmp_key_path.exists() {
+            let _ = fs::remove_file(&tmp_key_path);
+        }
+
+        let signer = EvidenceSigner::load_or_generate(&tmp_key_path).expect("Failed to create signer");
+        let evidence = create_mock_evidence();
+
+        let sig = signer.sign(&evidence).expect("Signing failed");
+        let is_valid = EvidenceSigner::verify(&signer.public_key(), &evidence, &sig).expect("Verification failed");
+
+        assert!(is_valid, "Valid signature should pass verification");
+
+        // Clean up
+        let _ = fs::remove_file(&tmp_key_path);
+    }
+
+    #[test]
+    fn test_sign_and_verify_tampered_fails() {
+        let tmp_key_path = std::env::temp_dir().join("test_yuanjing_signer_tamper.key");
+        if tmp_key_path.exists() {
+            let _ = fs::remove_file(&tmp_key_path);
+        }
+
+        let signer = EvidenceSigner::load_or_generate(&tmp_key_path).expect("Failed to create signer");
+        let evidence = create_mock_evidence();
+        let sig = signer.sign(&evidence).expect("Signing failed");
+
+        let mut tampered_evidence = evidence.clone();
+        tampered_evidence.verdict = !tampered_evidence.verdict;
+
+        let is_valid = EvidenceSigner::verify(&signer.public_key(), &tampered_evidence, &sig).expect("Verification failed");
+
+        assert!(!is_valid, "Tampered evidence should fail verification");
+
+        let _ = fs::remove_file(&tmp_key_path);
+    }
+}
